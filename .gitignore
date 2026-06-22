@@ -1,0 +1,13 @@
+# Secrets
+.env
+
+# Local SQLite database + WAL sidecars
+movie-night.db
+movie-night.db-wal
+movie-night.db-shm
+
+# OS / editor cruft
+.DS_Store
+
+# Local Claude Code config
+.claude/

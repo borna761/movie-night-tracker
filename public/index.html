@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎬 Movie Night Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><text y='32' font-size='32'>🎬</text></svg>" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>🎬 Movie Night Tracker</h1>
+    <nav class="tabs">
+      <button class="tab active" data-tab="board">Board</button>
+      <button class="tab" data-tab="families">Families</button>
+      <button class="tab" data-tab="watchlist">Watchlist</button>
+      <button class="tab" data-tab="history">History</button>
+    </nav>
+  </header>
+
+  <!-- BOARD -->
+  <section id="board" class="view active">
+    <div id="movie-header" class="movie-header"></div>
+    <div id="columns" class="columns"></div>
+  </section>
+
+  <!-- WATCHLIST -->
+  <section id="watchlist" class="view">
+    <div class="panel">
+      <h2>Add a movie to the watchlist</h2>
+      <div class="row-form">
+        <input id="wl-search" placeholder="Search for a movie…" autocomplete="off" style="flex:1" />
+      </div>
+      <div id="wl-search-results" class="search-results" style="margin-top:10px"></div>
+    </div>
+    <div id="wl-list" class="wl-list"></div>
+  </section>
+
+  <!-- FAMILIES -->
+  <section id="families" class="view">
+    <div class="panel">
+      <h2>Add a child / family</h2>
+      <form id="family-form" class="row-form">
+        <input name="child_name" placeholder="Child's name *" required />
+        <input name="family_name" placeholder="Family / last name" />
+        <input name="notes" placeholder="Notes (allergies, age…)" />
+        <button type="submit">Add</button>
+      </form>
+    </div>
+    <div id="family-list" class="family-list"></div>
+  </section>
+
+  <!-- HISTORY -->
+  <section id="history" class="view">
+    <div id="history-list" class="history-list"></div>
+  </section>
+
+  <!-- Movie search modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <h2>Set up movie night</h2>
+      <label>Date
+        <div class="date-picker" id="date-picker">
+          <input type="text" id="night-date-display" readonly placeholder="Pick a date…" />
+          <input type="hidden" id="night-date" />
+          <div class="cal-dropdown hidden" id="cal-dropdown">
+            <div class="cal-header">
+              <button type="button" id="cal-prev">‹</button>
+              <span id="cal-month-label"></span>
+              <button type="button" id="cal-next">›</button>
+            </div>
+            <div class="cal-day-names">
+              <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+            </div>
+            <div id="cal-days"></div>
+          </div>
+        </div>
+      </label>
+      <div id="modal-watchlist-section"></div>
+      <label>Search TMDB for a movie
+        <input type="text" id="movie-search" placeholder="Type a title…" autocomplete="off" />
+      </label>
+      <div id="search-results" class="search-results"></div>
+      <div id="chosen-movie" class="chosen-movie"></div>
+      <div class="modal-actions">
+        <button id="modal-cancel" class="ghost">Cancel</button>
+        <button id="modal-start">Start night</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
