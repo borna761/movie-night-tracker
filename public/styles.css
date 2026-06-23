@@ -90,6 +90,15 @@ button.ghost { background: transparent; border: 1px solid var(--border); color: 
   grid-template-columns: repeat(6, 1fr);
   gap: 14px;
 }
+@media (max-width: 700px) {
+  .topbar { padding: 10px 14px; }
+  .topbar h1 { font-size: 15px; }
+  .columns { grid-template-columns: repeat(6, 260px); overflow-x: auto; padding-bottom: 10px; }
+  .movie-header { align-items: flex-start; }
+  .movie-header img { width: 60px; }
+  .movie-header .overview { display: none; }
+  .movie-header h2 { font-size: 17px; }
+}
 .column {
   background: var(--surface);
   border: 1px solid var(--border);

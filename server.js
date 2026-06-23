@@ -283,7 +283,7 @@ async function api(req, res, url) {
 }
 
 // ---------- static files ----------
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png' };
 function serveStatic(res, url) {
   let file = url.pathname === '/' ? '/index.html' : url.pathname;
   const full = path.join(__dirname, 'public', path.normalize(file));
