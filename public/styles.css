@@ -15,6 +15,24 @@
   --radius: 10px;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --border: #38383a;
+    --text: #f2f2f7;
+    --muted: #8e8e93;
+    --accent: #ff3b30;
+    --to_invite: #bf5af2;
+    --invited: #8e8e93;
+    --declined: #ff453a;
+    --confirmed: #0a84ff;
+    --did_not_show: #ff9f0a;
+    --attended: #30d158;
+  }
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -120,7 +138,7 @@ button.ghost { background: transparent; border: 1px solid var(--border); color: 
 .col-count { color: var(--muted); font-weight: 400; }
 .col-label { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; }
 .col-label-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dot { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; }
+.dot { flex-shrink: 0; display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
 
 .card {
   background: var(--surface-2);
