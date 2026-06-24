@@ -15,6 +15,24 @@
   --radius: 10px;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --border: #38383a;
+    --text: #f2f2f7;
+    --muted: #8e8e93;
+    --accent: #ff3b30;
+    --to_invite: #bf5af2;
+    --invited: #8e8e93;
+    --declined: #ff453a;
+    --confirmed: #0a84ff;
+    --did_not_show: #ff9f0a;
+    --attended: #30d158;
+  }
+}
+
 * { box-sizing: border-box; }
 
 body {
