@@ -37,12 +37,19 @@ document.querySelectorAll('.tab').forEach((tab) => {
 });
 
 // ---------- Board ----------
+let boardLoading = false;
+let nightActive = false;
+
 async function loadBoard() {
+  if (boardLoading) return;
+  boardLoading = true;
   const data = await api('/api/night/active');
+  boardLoading = false;
   const header = $('#movie-header');
   const columns = $('#columns');
 
   if (!data.night) {
+    nightActive = false;
     columns.innerHTML = '';
     header.innerHTML = `
       <div class="empty-board" style="width:100%">
@@ -52,6 +59,7 @@ async function loadBoard() {
     $('#setup-btn').addEventListener('click', openModal);
     return;
   }
+  nightActive = true;
 
   const n = data.night;
   const year = n.release_date ? `(${n.release_date.slice(0, 4)})` : '';
@@ -535,5 +543,5 @@ loadBoard();
 // document isn't hidden (e.g. phone screen off or tab in background).
 setInterval(() => {
   const boardActive = document.getElementById('board').classList.contains('active');
-  if (boardActive && !document.hidden) loadBoard();
+  if (boardActive && !document.hidden && nightActive) loadBoard();
 }, 60_000);
