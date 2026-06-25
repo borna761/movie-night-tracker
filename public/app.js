@@ -530,3 +530,10 @@ $('#modal-start').addEventListener('click', async () => {
 
 // ---------- init ----------
 loadBoard();
+
+// Reload the board every 60 s, but only when the board tab is visible and the
+// document isn't hidden (e.g. phone screen off or tab in background).
+setInterval(() => {
+  const boardActive = document.getElementById('board').classList.contains('active');
+  if (boardActive && !document.hidden) loadBoard();
+}, 60_000);
