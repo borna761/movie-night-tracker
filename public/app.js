@@ -345,11 +345,14 @@ async function loadHistory() {
     list.innerHTML = '<p style="color:var(--muted)">No archived movie nights yet.</p>';
     return;
   }
+  const historyStatusRank = { attended: 0, confirmed: 1, invited: 2, did_not_show: 3, declined: 4 };
   list.innerHTML = nights.map((n) => {
     const attendees = (n.attendees || []).filter((a) => a.status === 'attended');
-    const chips = (n.attendees || []).map((a) =>
-      `<span class="chip" style="border-color:var(--${a.status});color:var(--${a.status})">${esc(a.child_name)}</span>`
-    ).join('');
+    const chips = (n.attendees || [])
+      .filter((a) => a.status !== 'to_invite')
+      .sort((a, b) => historyStatusRank[a.status] - historyStatusRank[b.status])
+      .map((a) => `<span class="chip" style="border-color:var(--${a.status});color:var(--${a.status})">${esc(a.child_name)}</span>`)
+      .join('');
     const year = n.release_date ? `(${n.release_date.slice(0, 4)})` : '';
     return `
       <div class="history-card">
