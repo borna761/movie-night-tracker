@@ -227,8 +227,19 @@ input, .modal label input {
 .wl-card .wl-overview { color: var(--muted); font-size: 12px; line-height: 1.4; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .wl-card button { width: 100%; font-size: 13px; padding: 7px; }
 .wl-card .wl-actions { display: flex; gap: 6px; padding: 0 10px 10px; }
-.wl-card--watched { opacity: 0.65; }
+.wl-card--watched { opacity: 0.6; border-top: 3px solid var(--attended); }
 .wl-watched { font-size: 11px; color: var(--attended); margin-top: 4px; font-weight: 600; }
+.wl-section-header {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  padding: 8px 2px 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+}
 .wl-card .wl-actions button { flex: 1; }
 .modal-watchlist-section { margin-bottom: 14px; }
 .modal-watchlist-section h3 { font-size: 13px; color: var(--muted); margin: 0 0 8px; }

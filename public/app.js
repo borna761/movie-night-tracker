@@ -142,7 +142,12 @@ async function loadWatchlist() {
     list.innerHTML = '<p style="color:var(--muted)">No movies in the watchlist yet. Search above to add some.</p>';
     return;
   }
-  list.innerHTML = movies.map((m) => wlCardHTML(m)).join('');
+  const unwatched = movies.filter((m) => !m.last_watched);
+  const watched = movies.filter((m) => m.last_watched);
+  const watchedSection = watched.length
+    ? `<div class="wl-section-header">Watched (${watched.length})</div>${watched.map(wlCardHTML).join('')}`
+    : '';
+  list.innerHTML = unwatched.map(wlCardHTML).join('') + watchedSection;
   list.querySelectorAll('.wl-remove').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       const id = e.target.closest('[data-wl-id]').dataset.wlId;
