@@ -80,7 +80,7 @@ async function loadBoard() {
     return `
       <div class="column" data-status="${s.key}">
         <div class="col-head">
-          <span class="col-label"><span class="dot" style="background:var(--${s.key})"></span><span class="col-label-text">${s.label}</span></span>
+          <span class="col-label"><span class="status-dot" style="background:var(--${s.key})"></span><span class="col-label-text">${s.label}</span></span>
           <span class="col-count">${cards.length}</span>
         </div>
         <div class="col-body" data-status="${s.key}">
