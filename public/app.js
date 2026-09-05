@@ -380,7 +380,11 @@ function calOpen(date) {
   cal.year = date.getFullYear();
   cal.month = date.getMonth();
   calRender();
-  $('#cal-dropdown').classList.remove('hidden');
+  const rect = $('#night-date-display').getBoundingClientRect();
+  const dropdown = $('#cal-dropdown');
+  dropdown.style.top = `${rect.bottom + 6}px`;
+  dropdown.style.left = `${rect.left}px`;
+  dropdown.classList.remove('hidden');
 }
 
 function calSetSelected(date) {

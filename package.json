@@ -1,0 +1,26 @@
+{
+  "name": "movie-night-tracker",
+  "version": "1.0.0",
+  "description": "A local-only Kanban tracker for home movie nights. No accounts, no cloud — it runs on your machine and stores everything in a local SQLite file (`movie-night.db`).",
+  "main": "db.js",
+  "scripts": {
+    "test": "jest",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/borna761/movie-night-tracker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/borna761/movie-night-tracker/issues"
+  },
+  "homepage": "https://github.com/borna761/movie-night-tracker#readme",
+  "devDependencies": {
+    "jest": "^30.5.1",
+    "jest-environment-jsdom": "^30.5.1"
+  }
+}

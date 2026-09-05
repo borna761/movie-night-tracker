@@ -285,9 +285,7 @@ input, .modal label input {
 .date-picker { position: relative; margin-top: 5px; }
 .date-picker #night-date-display { width: 100%; cursor: pointer; }
 .cal-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
+  position: fixed;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);

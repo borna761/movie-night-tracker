@@ -9,5 +9,8 @@ movie-night.db-shm
 # OS / editor cruft
 .DS_Store
 
+# Dependencies
+node_modules/
+
 # Local Claude Code config
 .claude/
