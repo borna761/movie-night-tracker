@@ -17,3 +17,6 @@ node_modules/
 
 # Local Claude Code config
 .claude/
+
+# Scratch copies of production data used to test the migration script
+migration-testdata/
