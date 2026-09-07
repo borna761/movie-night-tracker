@@ -19,6 +19,7 @@
       <button class="tab active" data-tab="board">Board</button>
       <button class="tab" data-tab="families">Families</button>
       <button class="tab" data-tab="watchlist">Watchlist</button>
+      <button class="tab" data-tab="ideas">Ideas</button>
       <button class="tab" data-tab="history">History</button>
       <button class="tab" data-tab="event-types">Event Types</button>
     </nav>
@@ -40,6 +41,20 @@
       <div id="wl-search-results" class="search-results" style="margin-top:10px"></div>
     </div>
     <div id="wl-list" class="wl-list"></div>
+  </section>
+
+  <!-- IDEAS (generic, for every event type except Movie Night) -->
+  <section id="ideas" class="view">
+    <div class="panel">
+      <h2>Add an idea</h2>
+      <form id="idea-form" class="row-form">
+        <select id="idea-type-select" style="flex:0 0 180px"></select>
+        <input name="name" placeholder="Idea name *" required style="flex:1" />
+        <input name="notes" placeholder="Notes (optional)" style="flex:1" />
+        <button type="submit">Add</button>
+      </form>
+    </div>
+    <div id="idea-list" class="idea-list"></div>
   </section>
 
   <!-- FAMILIES -->

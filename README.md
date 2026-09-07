@@ -22,6 +22,10 @@ cloud — it runs on your machine and stores everything in a local SQLite file
   group siblings under a shared family header. Shared across all event types.
 - **Watchlist** tab (Movie Night specific): search TMDB for movies to watch
   later; the setup modal lets you pick from unwatched entries.
+- **Ideas** tab (every other event type): a simple name + notes list per
+  type — e.g. a running list of Service Project ideas — picked from the
+  setup modal the same way the Watchlist works for movies. New event names
+  are auto-added here so the list builds itself over time.
 - **Archive & reset** — when an event is over, one click archives the board
   (name, date, custom fields, and everyone's final status) to History and
   clears it for the next event.

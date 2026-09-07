@@ -40,6 +40,14 @@ db.exec(`
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS event_ideas (
+    id            INTEGER PRIMARY KEY,
+    event_type_id INTEGER NOT NULL REFERENCES event_types(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL,
+    notes         TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS watchlist (
     id           INTEGER PRIMARY KEY,
     title        TEXT NOT NULL,

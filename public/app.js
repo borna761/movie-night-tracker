@@ -55,6 +55,7 @@ document.querySelectorAll('.tab').forEach((tab) => {
     if (tab.dataset.tab === 'families') loadFamilies();
     if (tab.dataset.tab === 'history') loadHistory();
     if (tab.dataset.tab === 'watchlist') loadWatchlist();
+    if (tab.dataset.tab === 'ideas') loadIdeas();
     if (tab.dataset.tab === 'board') loadBoard();
     if (tab.dataset.tab === 'event-types') loadEventTypes();
   });
@@ -268,6 +269,65 @@ async function doWlSearch(q) {
     });
   });
 }
+
+// ---------- Ideas (generic, every event type except Movie Night) ----------
+async function loadIdeas() {
+  const [ideas, types] = await Promise.all([api('/api/ideas'), api('/api/event-types')]);
+  const nonMovieTypes = types.filter((t) => t.slug !== 'movie_night');
+  $('#idea-type-select').innerHTML = nonMovieTypes.map((t) => `<option value="${t.id}">${t.icon} ${esc(t.name)}</option>`).join('');
+
+  const list = $('#idea-list');
+  if (!ideas.length) {
+    list.innerHTML = '<p style="color:var(--muted)">No ideas yet. Add one above.</p>';
+    return;
+  }
+  const groups = new Map();
+  for (const i of ideas) {
+    const key = i.event_type.id;
+    if (!groups.has(key)) groups.set(key, { type: i.event_type, items: [] });
+    groups.get(key).items.push(i);
+  }
+  list.innerHTML = [...groups.values()].map((g) => `
+    <div class="idea-group">
+      <div class="idea-group-header">${g.type.icon} ${esc(g.type.name)}</div>
+      <div class="idea-group-items">
+        ${g.items.map(ideaCardHTML).join('')}
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('.idea-remove').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('[data-idea-id]').dataset.ideaId;
+      await api('/api/ideas/' + id, { method: 'DELETE' });
+      loadIdeas();
+    });
+  });
+}
+
+function ideaCardHTML(i) {
+  const usedBadge = i.last_used ? `<div class="idea-used">✓ Last used ${esc(i.last_used)}</div>` : '';
+  return `
+    <div class="idea-card${i.last_used ? ' idea-card--used' : ''}" data-idea-id="${i.id}">
+      <div class="idea-name">${esc(i.name)}</div>
+      ${i.notes ? `<div class="idea-notes">${esc(i.notes)}</div>` : ''}
+      ${usedBadge}
+      <button class="ghost idea-remove" style="font-size:12px;padding:5px">Remove</button>
+    </div>`;
+}
+
+$('#idea-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await api('/api/ideas', {
+    method: 'POST',
+    body: JSON.stringify({
+      event_type_id: Number($('#idea-type-select').value),
+      name: fd.get('name'),
+      notes: fd.get('notes'),
+    }),
+  });
+  e.target.reset();
+  loadIdeas();
+});
 
 // ---------- Families ----------
 async function loadFamilies() {
@@ -610,10 +670,36 @@ async function renderModalTypeExtra() {
 
   const fields = JSON.parse(type.fields || '[]');
   box.innerHTML = `
+    <div id="modal-ideas-section"></div>
     <label>Name
       <input type="text" id="event-name" placeholder="e.g. ${esc(type.name)}" />
     </label>
     ${fields.map((f) => customFieldInputHTML(f)).join('')}`;
+  await renderIdeasPicker(type.id);
+}
+
+async function renderIdeasPicker(typeId) {
+  const ideas = (await api('/api/ideas')).filter((i) => i.event_type_id === typeId && !i.last_used);
+  const sec = $('#modal-ideas-section');
+  if (!sec) return;
+  if (ideas.length) {
+    sec.innerHTML = `
+      <div class="modal-watchlist-section">
+        <h3>Pick from your ideas</h3>
+        <div class="modal-wl-scroll">
+          ${ideas.map((i) => `<div class="modal-idea-item" data-name="${esc(i.name)}">${esc(i.name)}</div>`).join('')}
+        </div>
+      </div>`;
+    sec.querySelectorAll('.modal-idea-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        sec.querySelectorAll('.modal-idea-item').forEach((x) => x.classList.remove('selected'));
+        el.classList.add('selected');
+        $('#event-name').value = el.dataset.name;
+      });
+    });
+  } else {
+    sec.innerHTML = '';
+  }
 }
 
 function customFieldInputHTML(f) {

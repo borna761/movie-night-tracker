@@ -197,6 +197,37 @@ async function api(req, res, url) {
     }
   }
 
+  // --- ideas (generic per-event-type picklist, all types except movie_night) ---
+  if (seg[0] === 'ideas') {
+    if (method === 'GET' && seg.length === 1) {
+      const rows = db.prepare(`
+        SELECT i.*,
+          (SELECT e.event_date FROM events e
+           WHERE e.event_type_id = i.event_type_id AND e.name = i.name AND e.is_active = 0
+           ORDER BY e.event_date DESC LIMIT 1) AS last_used
+        FROM event_ideas i
+        ORDER BY i.name COLLATE NOCASE
+      `).all();
+      return send(res, 200, rows.map((r) => withType(r)));
+    }
+    if (method === 'POST' && seg.length === 1) {
+      const b = await readBody(req);
+      if (!b.name || !b.name.trim() || !b.event_type_id) return send(res, 400, { error: 'name and event_type_id required' });
+      const type = eventTypeById(b.event_type_id);
+      if (!type) return send(res, 400, { error: 'invalid event_type_id' });
+      const info = db.prepare(
+        'INSERT INTO event_ideas (event_type_id, name, notes) VALUES (?, ?, ?)'
+      ).run(type.id, b.name.trim(), b.notes || null);
+      return send(res, 201, db.prepare('SELECT * FROM event_ideas WHERE id = ?').get(info.lastInsertRowid));
+    }
+    if (method === 'DELETE' && seg.length === 2) {
+      const id = parseId(seg[1]);
+      if (!id) return send(res, 400, { error: 'invalid id' });
+      db.prepare('DELETE FROM event_ideas WHERE id = ?').run(id);
+      return send(res, 200, { ok: true });
+    }
+  }
+
   // --- active event / board ---
   if (seg[0] === 'event') {
     if (method === 'GET' && seg[1] === 'active') {
@@ -224,6 +255,13 @@ async function api(req, res, url) {
         if (!dupCheck) {
           db.prepare('INSERT INTO watchlist (title, tmdb_id, poster_path, release_date, overview) VALUES (?, ?, ?, ?, ?)')
             .run(b.name, tmdbId, fields.poster_path || null, fields.release_date || null, fields.overview || null);
+        }
+      } else if (type.slug !== 'movie_night' && b.name) {
+        const dupCheck = db.prepare(
+          'SELECT id FROM event_ideas WHERE event_type_id = ? AND name = ? COLLATE NOCASE'
+        ).get(type.id, b.name);
+        if (!dupCheck) {
+          db.prepare('INSERT INTO event_ideas (event_type_id, name) VALUES (?, ?)').run(type.id, b.name);
         }
       }
 

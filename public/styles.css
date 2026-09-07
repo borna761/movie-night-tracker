@@ -193,6 +193,34 @@ textarea { resize: vertical; }
 .family-card input { width: 100%; display: block; }
 .family-card button { padding: 6px 12px; font-size: 13px; }
 
+/* ---------- Ideas ---------- */
+.idea-list { display: flex; flex-direction: column; gap: 20px; }
+.idea-group-header { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+.idea-group-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.idea-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.idea-card--used { opacity: 0.6; border-top: 3px solid var(--attended); }
+.idea-card .idea-name { font-weight: 600; font-size: 15px; }
+.idea-card .idea-notes { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.idea-card .idea-used { font-size: 11px; color: var(--attended); margin-top: 6px; font-weight: 600; }
+.idea-card button { margin-top: 10px; padding: 6px 12px; font-size: 13px; }
+.modal-idea-item {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.modal-idea-item:hover { border-color: var(--accent); }
+.modal-idea-item.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+
 /* ---------- History ---------- */
 .history-list { display: flex; flex-direction: column; gap: 14px; }
 .history-card {

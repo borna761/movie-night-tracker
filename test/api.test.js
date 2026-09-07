@@ -169,3 +169,67 @@ test('GET /api/watchlist shows last_watched after the movie event is archived', 
   const btf = watchlist.find((w) => w.title === 'Back to the Future');
   assert.equal(btf.last_watched, '2026-09-12');
 });
+
+// ---------- ideas (generic per-event-type picklist) ----------
+test('GET /api/ideas includes Park Cleanup, auto-added when the event was created, marked used', async () => {
+  const res = await fetch(`${base()}/api/ideas`);
+  assert.equal(res.status, 200);
+  const ideas = await res.json();
+  const parkCleanup = ideas.find((i) => i.name === 'Park Cleanup');
+  assert.ok(parkCleanup, 'Park Cleanup should have been auto-added as an idea');
+  assert.equal(parkCleanup.event_type.slug, 'service_project');
+  assert.equal(parkCleanup.last_used, '2026-09-10');
+});
+
+test('movie_night events are not auto-added to the generic ideas list (they use watchlist)', async () => {
+  const ideas = await (await fetch(`${base()}/api/ideas`)).json();
+  assert.ok(!ideas.some((i) => i.name === 'Back to the Future'));
+});
+
+test('POST /api/ideas creates a new idea for a type', async () => {
+  const types = await (await fetch(`${base()}/api/event-types`)).json();
+  const serviceType = types.find((t) => t.slug === 'service_project');
+  const res = await fetch(`${base()}/api/ideas`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_type_id: serviceType.id, name: 'Food Bank Sorting', notes: 'Bring gloves' }),
+  });
+  assert.equal(res.status, 201);
+  const body = await res.json();
+  assert.equal(body.name, 'Food Bank Sorting');
+  assert.equal(body.notes, 'Bring gloves');
+});
+
+test('POST /api/ideas requires name and event_type_id', async () => {
+  const res = await fetch(`${base()}/api/ideas`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'No type' }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test('DELETE /api/ideas/:id removes an idea', async () => {
+  const ideas = await (await fetch(`${base()}/api/ideas`)).json();
+  const foodBank = ideas.find((i) => i.name === 'Food Bank Sorting');
+  const res = await fetch(`${base()}/api/ideas/${foodBank.id}`, { method: 'DELETE' });
+  assert.equal(res.status, 200);
+  const remaining = await (await fetch(`${base()}/api/ideas`)).json();
+  assert.ok(!remaining.some((i) => i.id === foodBank.id));
+});
+
+test('creating an event for a custom type also auto-adds an idea', async () => {
+  const typeRes = await fetch(`${base()}/api/event-types`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Bake Sale', icon: '🧁', fields: [] }),
+  });
+  const bakeSale = await typeRes.json();
+  await fetch(`${base()}/api/event`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_type_id: bakeSale.id, name: 'Fall Feast', event_date: '2026-10-01' }),
+  });
+  const ideas = await (await fetch(`${base()}/api/ideas`)).json();
+  assert.ok(ideas.some((i) => i.name === 'Fall Feast' && i.event_type.slug === 'bake_sale'));
+});
