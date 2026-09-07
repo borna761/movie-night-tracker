@@ -196,7 +196,7 @@ textarea { resize: vertical; }
 /* ---------- Ideas ---------- */
 .idea-list { display: flex; flex-direction: column; gap: 20px; }
 .idea-group-header { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
-.idea-group-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.idea-group-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
 .idea-card {
   background: var(--surface);
   border: 1px solid var(--border);
