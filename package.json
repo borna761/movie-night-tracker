@@ -10,14 +10,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/borna761/movie-night-tracker.git"
+    "url": "git+https://github.com/borna761/event-tracker.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/borna761/movie-night-tracker/issues"
+    "url": "https://github.com/borna761/event-tracker/issues"
   },
-  "homepage": "https://github.com/borna761/movie-night-tracker#readme"
+  "homepage": "https://github.com/borna761/event-tracker#readme"
 }
