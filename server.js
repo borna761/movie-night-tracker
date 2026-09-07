@@ -40,32 +40,41 @@ function readBody(req) {
   });
 }
 
-function activeNight() {
-  return db.prepare('SELECT * FROM nights WHERE is_active = 1 ORDER BY id DESC LIMIT 1').get();
-}
-
 function parseId(s) {
   const n = Number(s);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-function attendanceForNight(nightId) {
+function eventTypeById(id) {
+  return db.prepare('SELECT * FROM event_types WHERE id = ?').get(id);
+}
+
+function withType(event) {
+  if (!event) return event;
+  return { ...event, event_type: eventTypeById(event.event_type_id) };
+}
+
+function activeEvent() {
+  return db.prepare('SELECT * FROM events WHERE is_active = 1 ORDER BY id DESC LIMIT 1').get();
+}
+
+function attendanceForEvent(eventId) {
   return db.prepare(`
     SELECT a.id, a.family_id, a.status, f.child_name, f.family_name, f.notes
     FROM attendance a
     JOIN families f ON f.id = a.family_id
-    WHERE a.night_id = ? AND f.archived = 0
+    WHERE a.event_id = ? AND f.archived = 0
     ORDER BY f.child_name COLLATE NOCASE
-  `).all(nightId);
+  `).all(eventId);
 }
 
-// Ensure every active family has an attendance row for the active night.
-function seedAttendance(nightId) {
+// Ensure every active family has an attendance row for the active event.
+function seedAttendance(eventId) {
   const families = db.prepare('SELECT id FROM families WHERE archived = 0').all();
   const ins = db.prepare(
-    'INSERT OR IGNORE INTO attendance (night_id, family_id, status) VALUES (?, ?, ?)'
+    'INSERT OR IGNORE INTO attendance (event_id, family_id, status) VALUES (?, ?, ?)'
   );
-  for (const f of families) ins.run(nightId, f.id, 'to_invite');
+  for (const f of families) ins.run(eventId, f.id, 'to_invite');
 }
 
 // ---------- API ----------
@@ -73,6 +82,46 @@ async function api(req, res, url) {
   const parts = url.pathname.split('/').filter(Boolean); // ['api', ...]
   const seg = parts.slice(1); // drop 'api'
   const method = req.method;
+
+  // --- event types ---
+  if (seg[0] === 'event-types') {
+    if (method === 'GET' && seg.length === 1) {
+      return send(res, 200, db.prepare('SELECT * FROM event_types ORDER BY builtin DESC, name COLLATE NOCASE').all());
+    }
+    if (method === 'POST' && seg.length === 1) {
+      const b = await readBody(req);
+      if (!b.name || !b.name.trim() || !b.icon) return send(res, 400, { error: 'name and icon required' });
+      const slug = b.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      const info = db.prepare(
+        'INSERT INTO event_types (slug, name, icon, fields, builtin) VALUES (?, ?, ?, ?, 0)'
+      ).run(slug || `type_${Date.now()}`, b.name.trim(), b.icon, JSON.stringify(b.fields || []));
+      return send(res, 201, eventTypeById(info.lastInsertRowid));
+    }
+    if (method === 'PUT' && seg.length === 2) {
+      const id = parseId(seg[1]);
+      if (!id) return send(res, 400, { error: 'invalid id' });
+      const type = eventTypeById(id);
+      if (!type) return send(res, 404, { error: 'not found' });
+      const b = await readBody(req);
+      db.prepare('UPDATE event_types SET name = ?, icon = ?, fields = ? WHERE id = ?').run(
+        b.name ?? type.name, b.icon ?? type.icon,
+        type.builtin ? type.fields : JSON.stringify(b.fields ?? JSON.parse(type.fields)),
+        id
+      );
+      return send(res, 200, eventTypeById(id));
+    }
+    if (method === 'DELETE' && seg.length === 2) {
+      const id = parseId(seg[1]);
+      if (!id) return send(res, 400, { error: 'invalid id' });
+      const type = eventTypeById(id);
+      if (!type) return send(res, 404, { error: 'not found' });
+      if (type.builtin) return send(res, 403, { error: 'cannot delete a builtin event type' });
+      const inUse = db.prepare('SELECT COUNT(*) AS n FROM events WHERE event_type_id = ?').get(id);
+      if (inUse.n > 0) return send(res, 409, { error: 'event type has events, cannot delete' });
+      db.prepare('DELETE FROM event_types WHERE id = ?').run(id);
+      return send(res, 200, { ok: true });
+    }
+  }
 
   // --- families ---
   if (seg[0] === 'families') {
@@ -87,11 +136,10 @@ async function api(req, res, url) {
       const info = db.prepare(
         'INSERT INTO families (child_name, family_name, notes) VALUES (?, ?, ?)'
       ).run(b.child_name.trim(), b.family_name || null, b.notes || null);
-      // If a night is active, add this child to the board.
-      const night = activeNight();
-      if (night) {
-        db.prepare('INSERT OR IGNORE INTO attendance (night_id, family_id, status) VALUES (?, ?, ?)')
-          .run(night.id, info.lastInsertRowid, 'to_invite');
+      const event = activeEvent();
+      if (event) {
+        db.prepare('INSERT OR IGNORE INTO attendance (event_id, family_id, status) VALUES (?, ?, ?)')
+          .run(event.id, info.lastInsertRowid, 'to_invite');
       }
       return send(res, 201, db.prepare('SELECT * FROM families WHERE id = ?').get(info.lastInsertRowid));
     }
@@ -112,16 +160,19 @@ async function api(req, res, url) {
     }
   }
 
-  // --- watchlist ---
+  // --- watchlist (movie_night-specific) ---
   if (seg[0] === 'watchlist') {
     if (method === 'GET' && seg.length === 1) {
       return send(res, 200, db.prepare(`
         SELECT w.*,
-          (SELECT n.movie_date FROM nights n
-           WHERE (n.tmdb_id IS NOT NULL AND n.tmdb_id = w.tmdb_id
-                  OR n.tmdb_id IS NULL AND w.tmdb_id IS NULL AND n.title = w.title)
-             AND n.is_active = 0
-           ORDER BY n.movie_date DESC LIMIT 1) AS last_watched
+          (SELECT e.event_date FROM events e
+           JOIN event_types et ON et.id = e.event_type_id
+           WHERE et.slug = 'movie_night' AND e.is_active = 0
+             AND (
+               (w.tmdb_id IS NOT NULL AND json_extract(e.fields, '$.tmdb_id') = w.tmdb_id)
+               OR (w.tmdb_id IS NULL AND json_extract(e.fields, '$.tmdb_id') IS NULL AND e.name = w.title)
+             )
+           ORDER BY e.event_date DESC LIMIT 1) AS last_watched
         FROM watchlist w
         ORDER BY w.title COLLATE NOCASE
       `).all());
@@ -146,56 +197,53 @@ async function api(req, res, url) {
     }
   }
 
-  // --- active night / board ---
-  if (seg[0] === 'night') {
+  // --- active event / board ---
+  if (seg[0] === 'event') {
     if (method === 'GET' && seg[1] === 'active') {
-      const night = activeNight();
-      if (!night) return send(res, 200, { night: null, board: [] });
-      return send(res, 200, { night, board: attendanceForNight(night.id) });
+      const event = activeEvent();
+      if (!event) return send(res, 200, { event: null, board: [] });
+      return send(res, 200, { event: withType(event), board: attendanceForEvent(event.id) });
     }
     if (method === 'POST' && seg.length === 1) {
-      // Create a new active night (only one active at a time).
       const b = await readBody(req);
-      const existing = activeNight();
-      if (existing) return send(res, 409, { error: 'A night is already active. Reset it first.' });
-      const info = db.prepare(`
-        INSERT INTO nights (title, movie_date, tmdb_id, poster_path, release_date, overview)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(
-        b.title || null, b.movie_date || null, b.tmdb_id || null,
-        b.poster_path || null, b.release_date || null, b.overview || null
-      );
+      const existing = activeEvent();
+      if (existing) return send(res, 409, { error: 'An event is already active. Reset it first.' });
+      const type = eventTypeById(b.event_type_id);
+      if (!type) return send(res, 400, { error: 'invalid event_type_id' });
+      const fields = b.fields || {};
+      const info = db.prepare(
+        'INSERT INTO events (event_type_id, name, event_date, fields) VALUES (?, ?, ?, ?)'
+      ).run(type.id, b.name || null, b.event_date || null, JSON.stringify(fields));
       seedAttendance(info.lastInsertRowid);
-      if (b.title) {
-        const dupCheck = b.tmdb_id
-          ? db.prepare('SELECT id FROM watchlist WHERE tmdb_id = ?').get(b.tmdb_id)
-          : db.prepare('SELECT id FROM watchlist WHERE title = ? AND tmdb_id IS NULL').get(b.title);
+
+      if (type.slug === 'movie_night' && b.name) {
+        const tmdbId = fields.tmdb_id || null;
+        const dupCheck = tmdbId
+          ? db.prepare('SELECT id FROM watchlist WHERE tmdb_id = ?').get(tmdbId)
+          : db.prepare('SELECT id FROM watchlist WHERE title = ? AND tmdb_id IS NULL').get(b.name);
         if (!dupCheck) {
           db.prepare('INSERT INTO watchlist (title, tmdb_id, poster_path, release_date, overview) VALUES (?, ?, ?, ?, ?)')
-            .run(b.title, b.tmdb_id || null, b.poster_path || null, b.release_date || null, b.overview || null);
+            .run(b.name, tmdbId, fields.poster_path || null, fields.release_date || null, fields.overview || null);
         }
       }
-      const night = db.prepare('SELECT * FROM nights WHERE id = ?').get(info.lastInsertRowid);
-      return send(res, 201, { night, board: attendanceForNight(night.id) });
+
+      const event = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
+      return send(res, 201, { event: withType(event), board: attendanceForEvent(event.id) });
     }
     if (method === 'PUT' && seg[1] === 'active') {
-      const night = activeNight();
-      if (!night) return send(res, 404, { error: 'No active night' });
+      const event = activeEvent();
+      if (!event) return send(res, 404, { error: 'No active event' });
       const b = await readBody(req);
-      db.prepare(`
-        UPDATE nights SET title = ?, movie_date = ?, tmdb_id = ?, poster_path = ?, release_date = ?, overview = ?
-        WHERE id = ?
-      `).run(
-        b.title ?? night.title, b.movie_date ?? night.movie_date, b.tmdb_id ?? night.tmdb_id,
-        b.poster_path ?? night.poster_path, b.release_date ?? night.release_date,
-        b.overview ?? night.overview, night.id
+      db.prepare('UPDATE events SET name = ?, event_date = ?, fields = ? WHERE id = ?').run(
+        b.name ?? event.name, b.event_date ?? event.event_date,
+        b.fields ? JSON.stringify(b.fields) : event.fields, event.id
       );
-      return send(res, 200, db.prepare('SELECT * FROM nights WHERE id = ?').get(night.id));
+      return send(res, 200, withType(db.prepare('SELECT * FROM events WHERE id = ?').get(event.id)));
     }
     if (method === 'POST' && seg[1] === 'active' && seg[2] === 'reset') {
-      const night = activeNight();
-      if (!night) return send(res, 404, { error: 'No active night' });
-      db.prepare("UPDATE nights SET is_active = 0, archived_at = datetime('now') WHERE id = ?").run(night.id);
+      const event = activeEvent();
+      if (!event) return send(res, 404, { error: 'No active event' });
+      db.prepare("UPDATE events SET is_active = 0, archived_at = datetime('now') WHERE id = ?").run(event.id);
       return send(res, 200, { ok: true });
     }
   }
@@ -205,10 +253,10 @@ async function api(req, res, url) {
     const b = await readBody(req);
     if (!STATUSES.includes(b.status)) return send(res, 400, { error: 'bad status' });
     if (!Number.isInteger(b.family_id) || b.family_id < 1) return send(res, 400, { error: 'family_id required' });
-    const night = activeNight();
-    if (!night) return send(res, 404, { error: 'No active night' });
-    db.prepare("UPDATE attendance SET status = ?, updated_at = datetime('now') WHERE night_id = ? AND family_id = ?")
-      .run(b.status, night.id, b.family_id);
+    const event = activeEvent();
+    if (!event) return send(res, 404, { error: 'No active event' });
+    db.prepare("UPDATE attendance SET status = ?, updated_at = datetime('now') WHERE event_id = ? AND family_id = ?")
+      .run(b.status, event.id, b.family_id);
     return send(res, 200, { ok: true });
   }
 
@@ -216,41 +264,41 @@ async function api(req, res, url) {
   if (seg[0] === 'history') {
     if (method === 'GET' && seg.length === 1) {
       const rows = db.prepare(`
-        SELECT n.id, n.title, n.movie_date, n.tmdb_id, n.poster_path, n.release_date, n.overview,
-          n.is_active, n.archived_at, n.created_at,
-          (SELECT COUNT(*) FROM attendance ac WHERE ac.night_id = n.id AND ac.status = 'attended') AS attended_count,
+        SELECT e.id, e.name, e.event_date, e.fields, e.event_type_id,
+          e.is_active, e.archived_at, e.created_at,
+          (SELECT COUNT(*) FROM attendance ac WHERE ac.event_id = e.id AND ac.status = 'attended') AS attended_count,
           f.child_name, f.family_name, a.status AS attendee_status
-        FROM nights n
-        LEFT JOIN attendance a ON a.night_id = n.id
+        FROM events e
+        LEFT JOIN attendance a ON a.event_id = e.id
         LEFT JOIN families f ON f.id = a.family_id
-        WHERE n.is_active = 0
-        ORDER BY COALESCE(n.movie_date, n.archived_at) DESC, n.id DESC, f.child_name COLLATE NOCASE
+        WHERE e.is_active = 0
+        ORDER BY COALESCE(e.event_date, e.archived_at) DESC, e.id DESC, f.child_name COLLATE NOCASE
       `).all();
-      const nightMap = new Map();
+      const eventMap = new Map();
       for (const row of rows) {
-        if (!nightMap.has(row.id)) {
-          nightMap.set(row.id, {
-            id: row.id, title: row.title, movie_date: row.movie_date, tmdb_id: row.tmdb_id,
-            poster_path: row.poster_path, release_date: row.release_date, overview: row.overview,
+        if (!eventMap.has(row.id)) {
+          eventMap.set(row.id, {
+            id: row.id, name: row.name, event_date: row.event_date, fields: row.fields,
+            event_type: eventTypeById(row.event_type_id),
             is_active: row.is_active, archived_at: row.archived_at, created_at: row.created_at,
             attended_count: row.attended_count, attendees: [],
           });
         }
         if (row.child_name != null) {
-          nightMap.get(row.id).attendees.push({ child_name: row.child_name, family_name: row.family_name, status: row.attendee_status });
+          eventMap.get(row.id).attendees.push({ child_name: row.child_name, family_name: row.family_name, status: row.attendee_status });
         }
       }
-      return send(res, 200, [...nightMap.values()]);
+      return send(res, 200, [...eventMap.values()]);
     }
     if (method === 'GET' && seg[1] === 'family') {
       const id = parseId(seg[2]);
       if (!id) return send(res, 400, { error: 'invalid id' });
       const rows = db.prepare(`
-        SELECT n.title, n.movie_date, n.poster_path, n.release_date, a.status
-        FROM attendance a JOIN nights n ON n.id = a.night_id
-        WHERE a.family_id = ? AND n.is_active = 0
-        ORDER BY COALESCE(n.movie_date, n.archived_at) DESC
-      `).all(id);
+        SELECT e.name, e.event_date, e.event_type_id, a.status
+        FROM attendance a JOIN events e ON e.id = a.event_id
+        WHERE a.family_id = ? AND e.is_active = 0
+        ORDER BY COALESCE(e.event_date, e.archived_at) DESC
+      `).all(id).map((r) => ({ ...r, event_type: eventTypeById(r.event_type_id) }));
       return send(res, 200, rows);
     }
   }
@@ -305,7 +353,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`🎬 Movie Night Tracker running at http://localhost:${PORT}`);
-  if (!TMDB_API_KEY) console.log('⚠  No TMDB_API_KEY set — movie search disabled. See README.');
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`📅 Event Tracker running at http://localhost:${PORT}`);
+    if (!TMDB_API_KEY) console.log('⚠  No TMDB_API_KEY set — movie search disabled. See README.');
+  });
+} else {
+  server.listen(PORT);
+}
+
+module.exports = server;
