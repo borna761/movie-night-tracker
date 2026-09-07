@@ -23,6 +23,23 @@ const esc = (s) => (s == null ? '' : String(s).replace(/[&<>"]/g, (c) =>
 let chosenMovie = null;
 let eventTypes = [];
 
+// Positions a position:fixed dropdown below its trigger, flipping above and/or
+// clamping horizontally when there isn't room to avoid it running off-screen.
+function positionFixedDropdown(trigger, dropdown) {
+  const rect = trigger.getBoundingClientRect();
+  const dRect = dropdown.getBoundingClientRect();
+  let top = rect.bottom + 6;
+  if (top + dRect.height > window.innerHeight) {
+    top = Math.max(6, rect.top - dRect.height - 6);
+  }
+  let left = rect.left;
+  if (left + dRect.width > window.innerWidth) {
+    left = Math.max(6, window.innerWidth - dRect.width - 6);
+  }
+  dropdown.style.top = `${top}px`;
+  dropdown.style.left = `${left}px`;
+}
+
 function updateFavicon(icon) {
   const svg = `<svg xmlns='http://www.w3.org/2000/svg'><text y='32' font-size='32'>${icon || '📅'}</text></svg>`;
   $('#favicon').setAttribute('href', `data:image/svg+xml,${encodeURIComponent(svg)}`);
@@ -460,10 +477,8 @@ $('#icon-picker-btn').addEventListener('click', () => {
       });
     });
   }
-  const rect = $('#icon-picker-btn').getBoundingClientRect();
-  dropdown.style.top = `${rect.bottom + 6}px`;
-  dropdown.style.left = `${rect.left}px`;
   dropdown.classList.remove('hidden');
+  positionFixedDropdown($('#icon-picker-btn'), dropdown);
 });
 
 $('#event-type-form').addEventListener('submit', async (e) => {
@@ -494,11 +509,9 @@ function calOpen(date) {
   cal.year = date.getFullYear();
   cal.month = date.getMonth();
   calRender();
-  const rect = $('#event-date-display').getBoundingClientRect();
   const dropdown = $('#cal-dropdown');
-  dropdown.style.top = `${rect.bottom + 6}px`;
-  dropdown.style.left = `${rect.left}px`;
   dropdown.classList.remove('hidden');
+  positionFixedDropdown($('#event-date-display'), dropdown);
 }
 
 function calSetSelected(date) {
