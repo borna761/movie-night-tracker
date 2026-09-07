@@ -1,10 +1,10 @@
 {
-  "name": "Movie Night Tracker",
-  "short_name": "Movie Night",
+  "name": "Event Tracker",
+  "short_name": "Event Tracker",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f2f2f7",
-  "theme_color": "#e50914",
+  "theme_color": "#2563eb",
   "icons": [
     {
       "src": "/icon.svg",

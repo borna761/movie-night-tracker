@@ -21,6 +21,29 @@ const esc = (s) => (s == null ? '' : String(s).replace(/[&<>"]/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])));
 
 let chosenMovie = null;
+let eventTypes = [];
+
+// Positions a position:fixed dropdown below its trigger, flipping above and/or
+// clamping horizontally when there isn't room to avoid it running off-screen.
+function positionFixedDropdown(trigger, dropdown) {
+  const rect = trigger.getBoundingClientRect();
+  const dRect = dropdown.getBoundingClientRect();
+  let top = rect.bottom + 6;
+  if (top + dRect.height > window.innerHeight) {
+    top = Math.max(6, rect.top - dRect.height - 6);
+  }
+  let left = rect.left;
+  if (left + dRect.width > window.innerWidth) {
+    left = Math.max(6, window.innerWidth - dRect.width - 6);
+  }
+  dropdown.style.top = `${top}px`;
+  dropdown.style.left = `${left}px`;
+}
+
+function updateFavicon(icon) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg'><text y='32' font-size='32'>${icon || '📅'}</text></svg>`;
+  $('#favicon').setAttribute('href', `data:image/svg+xml,${encodeURIComponent(svg)}`);
+}
 
 // ---------- Tabs ----------
 document.querySelectorAll('.tab').forEach((tab) => {
@@ -32,48 +55,66 @@ document.querySelectorAll('.tab').forEach((tab) => {
     if (tab.dataset.tab === 'families') loadFamilies();
     if (tab.dataset.tab === 'history') loadHistory();
     if (tab.dataset.tab === 'watchlist') loadWatchlist();
+    if (tab.dataset.tab === 'ideas') loadIdeas();
     if (tab.dataset.tab === 'board') loadBoard();
+    if (tab.dataset.tab === 'event-types') loadEventTypes();
   });
 });
 
 // ---------- Board ----------
 let boardLoading = false;
-let nightActive = false;
+let eventActive = false;
 
 async function loadBoard() {
   if (boardLoading) return;
   boardLoading = true;
-  const data = await api('/api/night/active');
+  const data = await api('/api/event/active');
   boardLoading = false;
-  const header = $('#movie-header');
+  const header = $('#event-header');
   const columns = $('#columns');
 
-  if (!data.night) {
-    nightActive = false;
+  updateFavicon(data.event ? data.event.event_type.icon : null);
+
+  if (!data.event) {
+    eventActive = false;
     columns.innerHTML = '';
     header.innerHTML = `
       <div class="empty-board" style="width:100%">
-        <p>No movie night is set up yet.</p>
-        <button id="setup-btn">Set up a movie night</button>
+        <p>No event is set up yet.</p>
+        <button id="setup-btn">Set up an event</button>
       </div>`;
     $('#setup-btn').addEventListener('click', openModal);
     return;
   }
-  nightActive = true;
+  eventActive = true;
 
-  const n = data.night;
-  const year = n.release_date ? `(${n.release_date.slice(0, 4)})` : '';
-  header.innerHTML = `
-    ${n.poster_path ? `<img src="${esc(n.poster_path)}" alt="">` : ''}
-    <div class="meta">
-      <h2>${esc(n.title || 'Untitled movie')} ${year}</h2>
-      <div class="sub">📅 ${esc(n.movie_date || 'No date set')}</div>
-      <div class="overview">${esc(n.overview || '')}</div>
-    </div>
-    <div class="actions">
-      <button id="reset-btn" class="ghost">Archive & reset</button>
-    </div>`;
-  $('#reset-btn').addEventListener('click', resetNight);
+  const e = data.event;
+  const type = e.event_type;
+  const fields = JSON.parse(e.fields || '{}');
+
+  if (type.slug === 'movie_night') {
+    const year = fields.release_date ? `(${fields.release_date.slice(0, 4)})` : '';
+    header.innerHTML = `
+      ${fields.poster_path ? `<img src="${esc(fields.poster_path)}" alt="">` : ''}
+      <div class="meta">
+        <h2>${type.icon} ${esc(e.name || 'Untitled movie')} ${year}</h2>
+        <div class="sub">📅 ${esc(e.event_date || 'No date set')}</div>
+        <div class="overview">${esc(fields.overview || '')}</div>
+      </div>
+      <div class="actions">
+        <button id="reset-btn" class="ghost">Archive & reset</button>
+      </div>`;
+  } else {
+    header.innerHTML = `
+      <div class="meta">
+        <h2>${type.icon} ${esc(e.name || 'Untitled event')}</h2>
+        <div class="sub">📅 ${esc(e.event_date || 'No date set')}</div>
+      </div>
+      <div class="actions">
+        <button id="reset-btn" class="ghost">Archive & reset</button>
+      </div>`;
+  }
+  $('#reset-btn').addEventListener('click', resetEvent);
 
   columns.innerHTML = STATUSES.map((s) => {
     const cards = data.board.filter((c) => c.status === s.key);
@@ -126,13 +167,13 @@ function wireDragAndDrop() {
   });
 }
 
-async function resetNight() {
-  if (!confirm('Archive this movie night and clear the board? Attendance is saved to History.')) return;
-  await api('/api/night/active/reset', { method: 'POST' });
+async function resetEvent() {
+  if (!confirm('Archive this event and clear the board? Attendance is saved to History.')) return;
+  await api('/api/event/active/reset', { method: 'POST' });
   loadBoard();
 }
 
-// ---------- Watchlist ----------
+// ---------- Watchlist (movie-specific) ----------
 let wlSearchTimer = null;
 
 async function loadWatchlist() {
@@ -191,6 +232,9 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('#date-picker')) {
     $('#cal-dropdown')?.classList.add('hidden');
   }
+  if (!e.target.closest('#icon-picker')) {
+    $('#emoji-dropdown')?.classList.add('hidden');
+  }
 });
 
 async function doWlSearch(q) {
@@ -215,23 +259,75 @@ async function doWlSearch(q) {
     </div>`).join('');
   box.querySelectorAll('.result').forEach((el) => {
     el.addEventListener('click', async () => {
-      const status = el.querySelector('.wl-add-status');
       if (el.dataset.added) return;
       el.dataset.added = '1';
       const m = res[Number(el.dataset.i)];
-      const r = await api('/api/watchlist', { method: 'POST', body: JSON.stringify(m) });
-      if (r.error === 'already_in_watchlist') {
-        $('#wl-search').value = '';
-        $('#wl-search-results').innerHTML = '';
-        loadWatchlist();
-      } else {
-        $('#wl-search').value = '';
-        $('#wl-search-results').innerHTML = '';
-        loadWatchlist();
-      }
+      await api('/api/watchlist', { method: 'POST', body: JSON.stringify(m) });
+      $('#wl-search').value = '';
+      $('#wl-search-results').innerHTML = '';
+      loadWatchlist();
     });
   });
 }
+
+// ---------- Ideas (generic, every event type except Movie Night) ----------
+async function loadIdeas() {
+  const [ideas, types] = await Promise.all([api('/api/ideas'), api('/api/event-types')]);
+  const nonMovieTypes = types.filter((t) => t.slug !== 'movie_night');
+  $('#idea-type-select').innerHTML = nonMovieTypes.map((t) => `<option value="${t.id}">${t.icon} ${esc(t.name)}</option>`).join('');
+
+  const list = $('#idea-list');
+  if (!ideas.length) {
+    list.innerHTML = '<p style="color:var(--muted)">No ideas yet. Add one above.</p>';
+    return;
+  }
+  const groups = new Map();
+  for (const i of ideas) {
+    const key = i.event_type.id;
+    if (!groups.has(key)) groups.set(key, { type: i.event_type, items: [] });
+    groups.get(key).items.push(i);
+  }
+  list.innerHTML = [...groups.values()].map((g) => `
+    <div class="idea-group">
+      <div class="idea-group-header">${g.type.icon} ${esc(g.type.name)}</div>
+      <div class="idea-group-items">
+        ${g.items.map(ideaCardHTML).join('')}
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('.idea-remove').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('[data-idea-id]').dataset.ideaId;
+      await api('/api/ideas/' + id, { method: 'DELETE' });
+      loadIdeas();
+    });
+  });
+}
+
+function ideaCardHTML(i) {
+  const usedBadge = i.last_used ? `<div class="idea-used">✓ Last used ${esc(i.last_used)}</div>` : '';
+  return `
+    <div class="idea-card${i.last_used ? ' idea-card--used' : ''}" data-idea-id="${i.id}">
+      <div class="idea-name">${esc(i.name)}</div>
+      ${i.notes ? `<div class="idea-notes">${esc(i.notes)}</div>` : ''}
+      ${usedBadge}
+      <button class="ghost idea-remove" style="font-size:12px;padding:5px">Remove</button>
+    </div>`;
+}
+
+$('#idea-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await api('/api/ideas', {
+    method: 'POST',
+    body: JSON.stringify({
+      event_type_id: Number($('#idea-type-select').value),
+      name: fd.get('name'),
+      notes: fd.get('notes'),
+    }),
+  });
+  e.target.reset();
+  loadIdeas();
+});
 
 // ---------- Families ----------
 async function loadFamilies() {
@@ -242,10 +338,9 @@ async function loadFamilies() {
     return;
   }
 
-  // Group by family_name (null = no family grouping)
   const groups = {};
   for (const f of families) {
-    const key = f.family_name || '\x00'; // null-family last
+    const key = f.family_name || '\x00';
     if (!groups[key]) groups[key] = [];
     groups[key].push(f);
   }
@@ -303,7 +398,6 @@ async function loadFamilies() {
     });
   });
 
-  // Pre-fill the add form with the family name when "+ Add sibling" is clicked
   list.querySelectorAll('.add-sibling-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const familyInput = document.querySelector('#family-form [name="family_name"]');
@@ -344,32 +438,127 @@ $('#family-form').addEventListener('submit', async (e) => {
 
 // ---------- History ----------
 async function loadHistory() {
-  const nights = await api('/api/history');
+  const events = await api('/api/history');
   const list = $('#history-list');
-  if (!nights.length) {
-    list.innerHTML = '<p style="color:var(--muted)">No archived movie nights yet.</p>';
+  if (!events.length) {
+    list.innerHTML = '<p style="color:var(--muted)">No archived events yet.</p>';
     return;
   }
   const historyStatusRank = { attended: 0, confirmed: 1, invited: 2, did_not_show: 3, declined: 4 };
-  list.innerHTML = nights.map((n) => {
-    const attendees = (n.attendees || []).filter((a) => a.status === 'attended');
-    const chips = (n.attendees || [])
+  list.innerHTML = events.map((e) => {
+    const type = e.event_type;
+    const fields = JSON.parse(e.fields || '{}');
+    const attendees = (e.attendees || []).filter((a) => a.status === 'attended');
+    const chips = (e.attendees || [])
       .filter((a) => a.status !== 'to_invite')
       .sort((a, b) => historyStatusRank[a.status] - historyStatusRank[b.status])
       .map((a) => `<span class="chip" style="border-color:var(--${a.status});color:var(--${a.status})">${esc(a.child_name)}</span>`)
       .join('');
-    const year = n.release_date ? `(${n.release_date.slice(0, 4)})` : '';
+    const year = fields.release_date ? `(${fields.release_date.slice(0, 4)})` : '';
+    const poster = type.slug === 'movie_night' && fields.poster_path ? `<img src="${esc(fields.poster_path)}" alt="">` : '';
     return `
       <div class="history-card">
-        ${n.poster_path ? `<img src="${esc(n.poster_path)}" alt="">` : ''}
+        ${poster}
         <div>
-          <h3>${esc(n.title || 'Untitled')} ${year}</h3>
-          <div class="sub">📅 ${esc(n.movie_date || '—')} · ✅ ${attendees.length} attended</div>
+          <h3>${type.icon} ${esc(e.name || 'Untitled')} ${year}</h3>
+          <div class="sub">📅 ${esc(e.event_date || '—')} · ✅ ${attendees.length} attended</div>
           <div class="attendee-chips">${chips}</div>
         </div>
       </div>`;
   }).join('');
 }
+
+// ---------- Event Types ----------
+let pickedIcon = '';
+let cfbRows = [];
+
+async function loadEventTypes() {
+  eventTypes = await api('/api/event-types');
+  const list = $('#event-type-list');
+  list.innerHTML = eventTypes.map((t) => {
+    const fields = JSON.parse(t.fields || '[]');
+    return `
+      <div class="event-type-card" data-id="${t.id}">
+        <div class="etc-icon">${t.icon}</div>
+        <div class="etc-info">
+          <div class="etc-name">${esc(t.name)}</div>
+          ${fields.length ? `<div class="etc-fields">${fields.map((f) => esc(f.label)).join(', ')}</div>` : ''}
+        </div>
+        ${t.builtin ? '<span class="etc-builtin">Built-in</span>' : '<button class="ghost etc-delete" style="font-size:12px;padding:5px 10px">Delete</button>'}
+      </div>`;
+  }).join('');
+  list.querySelectorAll('.etc-delete').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('.event-type-card').dataset.id;
+      if (!confirm('Delete this event type?')) return;
+      const r = await api('/api/event-types/' + id, { method: 'DELETE' });
+      if (r.error) { alert(r.error); return; }
+      loadEventTypes();
+    });
+  });
+}
+
+function renderCfbRows() {
+  $('#cfb-rows').innerHTML = cfbRows.map((r, i) => `
+    <div class="cfb-row" data-i="${i}">
+      <input class="cfb-label" placeholder="Field label" value="${esc(r.label)}" />
+      <select class="cfb-type">
+        <option value="text" ${r.type === 'text' ? 'selected' : ''}>Text</option>
+        <option value="textarea" ${r.type === 'textarea' ? 'selected' : ''}>Long text</option>
+        <option value="date" ${r.type === 'date' ? 'selected' : ''}>Date</option>
+        <option value="number" ${r.type === 'number' ? 'selected' : ''}>Number</option>
+      </select>
+      <button type="button" class="ghost cfb-remove" style="font-size:12px;padding:5px 8px">✕</button>
+    </div>`).join('');
+  $('#cfb-rows').querySelectorAll('.cfb-row').forEach((row) => {
+    const i = Number(row.dataset.i);
+    row.querySelector('.cfb-label').addEventListener('input', (e) => { cfbRows[i].label = e.target.value; });
+    row.querySelector('.cfb-type').addEventListener('change', (e) => { cfbRows[i].type = e.target.value; });
+    row.querySelector('.cfb-remove').addEventListener('click', () => { cfbRows.splice(i, 1); renderCfbRows(); });
+  });
+}
+$('#cfb-add').addEventListener('click', () => { cfbRows.push({ label: '', type: 'text' }); renderCfbRows(); });
+
+$('#icon-picker-btn').addEventListener('click', () => {
+  const dropdown = $('#emoji-dropdown');
+  if (!dropdown.classList.contains('hidden')) { dropdown.classList.add('hidden'); return; }
+  if (!dropdown.dataset.built) {
+    dropdown.innerHTML = Object.entries(EMOJI_LIBRARY).map(([cat, emojis]) => `
+      <div class="emoji-cat-label">${esc(cat)}</div>
+      <div class="emoji-grid">
+        ${emojis.map((em) => `<button type="button" class="emoji-opt" data-emoji="${em}">${em}</button>`).join('')}
+      </div>`).join('');
+    dropdown.dataset.built = '1';
+    dropdown.querySelectorAll('.emoji-opt').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        pickedIcon = btn.dataset.emoji;
+        $('#icon-picker-btn').textContent = pickedIcon;
+        dropdown.classList.add('hidden');
+      });
+    });
+  }
+  dropdown.classList.remove('hidden');
+  positionFixedDropdown($('#icon-picker-btn'), dropdown);
+});
+
+$('#event-type-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const name = fd.get('name').trim();
+  if (!name || !pickedIcon) { alert('Name and icon are required.'); return; }
+  const fields = cfbRows.filter((r) => r.label.trim()).map((r) => ({
+    key: r.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+    label: r.label.trim(),
+    type: r.type,
+  }));
+  await api('/api/event-types', { method: 'POST', body: JSON.stringify({ name, icon: pickedIcon, fields }) });
+  e.target.reset();
+  pickedIcon = '';
+  $('#icon-picker-btn').textContent = 'Pick icon 🙂';
+  cfbRows = [];
+  renderCfbRows();
+  loadEventTypes();
+});
 
 // ---------- Custom Monday-first calendar ----------
 const cal = { year: 0, month: 0, selected: null };
@@ -380,18 +569,16 @@ function calOpen(date) {
   cal.year = date.getFullYear();
   cal.month = date.getMonth();
   calRender();
-  const rect = $('#night-date-display').getBoundingClientRect();
   const dropdown = $('#cal-dropdown');
-  dropdown.style.top = `${rect.bottom + 6}px`;
-  dropdown.style.left = `${rect.left}px`;
   dropdown.classList.remove('hidden');
+  positionFixedDropdown($('#event-date-display'), dropdown);
 }
 
 function calSetSelected(date) {
   cal.selected = date;
   const iso = dateToIso(date);
-  $('#night-date').value = iso;
-  $('#night-date-display').value = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  $('#event-date').value = iso;
+  $('#event-date-display').value = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function dateToIso(d) {
@@ -400,8 +587,8 @@ function dateToIso(d) {
 
 function calRender() {
   $('#cal-month-label').textContent = `${MONTHS[cal.month]} ${cal.year}`;
-  const firstDow = new Date(cal.year, cal.month, 1).getDay(); // 0=Sun
-  const offset = (firstDow + 6) % 7; // Mon=0
+  const firstDow = new Date(cal.year, cal.month, 1).getDay();
+  const offset = (firstDow + 6) % 7;
   const daysInMonth = new Date(cal.year, cal.month + 1, 0).getDate();
   const today = new Date();
   const cells = offset + daysInMonth;
@@ -424,7 +611,7 @@ function calRender() {
   });
 }
 
-$('#night-date-display').addEventListener('click', () => {
+$('#event-date-display').addEventListener('click', () => {
   if (!$('#cal-dropdown').classList.contains('hidden')) {
     $('#cal-dropdown').classList.add('hidden');
     return;
@@ -443,17 +630,100 @@ $('#cal-next').addEventListener('click', (e) => {
   calRender();
 });
 
-// ---------- Modal (set up night) ----------
+// ---------- Modal (set up event) ----------
+function currentModalType() {
+  return eventTypes.find((t) => String(t.id) === $('#event-type-select').value);
+}
+
 async function openModal() {
   chosenMovie = null;
-  calSetSelected(new Date()); // default to today
-  $('#movie-search').value = '';
-  $('#search-results').innerHTML = '';
-  $('#chosen-movie').innerHTML = '';
+  calSetSelected(new Date());
+  if (!eventTypes.length) eventTypes = await api('/api/event-types');
+  const select = $('#event-type-select');
+  select.innerHTML = eventTypes.map((t) => `<option value="${t.id}">${t.icon} ${esc(t.name)}</option>`).join('');
+  await renderModalTypeExtra();
+  $('#modal').classList.remove('hidden');
+}
+function closeModal() { $('#modal').classList.add('hidden'); }
 
-  // Show only unwatched watchlist movies at the top of the modal
+$('#modal-cancel').addEventListener('click', closeModal);
+$('#event-type-select').addEventListener('change', renderModalTypeExtra);
+
+async function renderModalTypeExtra() {
+  const type = currentModalType();
+  const box = $('#modal-type-extra');
+  if (!type) { box.innerHTML = ''; return; }
+
+  if (type.slug === 'movie_night') {
+    chosenMovie = null;
+    box.innerHTML = `
+      <div id="modal-watchlist-section"></div>
+      <label>Search TMDB for a movie
+        <input type="text" id="movie-search" placeholder="Type a title…" autocomplete="off" />
+      </label>
+      <div id="search-results" class="search-results"></div>
+      <div id="chosen-movie" class="chosen-movie"></div>`;
+    wireMovieSearch();
+    await renderWatchlistPicker();
+    return;
+  }
+
+  const fields = JSON.parse(type.fields || '[]');
+  box.innerHTML = `
+    <div id="modal-ideas-section"></div>
+    <label>Name
+      <input type="text" id="event-name" placeholder="e.g. ${esc(type.name)}" />
+    </label>
+    ${fields.map((f) => customFieldInputHTML(f)).join('')}`;
+  await renderIdeasPicker(type.id);
+}
+
+async function renderIdeasPicker(typeId) {
+  const ideas = (await api('/api/ideas')).filter((i) => i.event_type_id === typeId && !i.last_used);
+  const sec = $('#modal-ideas-section');
+  if (!sec) return;
+  if (ideas.length) {
+    sec.innerHTML = `
+      <div class="modal-watchlist-section">
+        <h3>Pick from your ideas</h3>
+        <div class="modal-wl-scroll">
+          ${ideas.map((i) => `<div class="modal-idea-item" data-name="${esc(i.name)}">${esc(i.name)}</div>`).join('')}
+        </div>
+      </div>`;
+    sec.querySelectorAll('.modal-idea-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        sec.querySelectorAll('.modal-idea-item').forEach((x) => x.classList.remove('selected'));
+        el.classList.add('selected');
+        $('#event-name').value = el.dataset.name;
+      });
+    });
+  } else {
+    sec.innerHTML = '';
+  }
+}
+
+function customFieldInputHTML(f) {
+  const id = `cf-${f.key}`;
+  if (f.type === 'textarea') return `<label>${esc(f.label)}<textarea id="${id}" rows="3"></textarea></label>`;
+  const inputType = f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text';
+  return `<label>${esc(f.label)}<input type="${inputType}" id="${id}" /></label>`;
+}
+
+let searchTimer = null;
+function wireMovieSearch() {
+  $('#movie-search').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    document.querySelectorAll('.modal-wl-item').forEach((x) => x.classList.remove('selected'));
+    const q = e.target.value.trim();
+    if (!q) { $('#search-results').innerHTML = ''; return; }
+    searchTimer = setTimeout(() => doSearch(q), 350);
+  });
+}
+
+async function renderWatchlistPicker() {
   const wl = (await api('/api/watchlist')).filter((m) => !m.last_watched);
   const sec = $('#modal-watchlist-section');
+  if (!sec) return;
   if (wl.length) {
     sec.innerHTML = `
       <div class="modal-watchlist-section">
@@ -477,26 +747,12 @@ async function openModal() {
   } else {
     sec.innerHTML = '';
   }
-
-  $('#modal').classList.remove('hidden');
 }
-function closeModal() { $('#modal').classList.add('hidden'); }
-
-$('#modal-cancel').addEventListener('click', closeModal);
-
-let searchTimer = null;
-$('#movie-search').addEventListener('input', (e) => {
-  clearTimeout(searchTimer);
-  // Deselect watchlist item if user starts typing
-  document.querySelectorAll('.modal-wl-item').forEach((x) => x.classList.remove('selected'));
-  const q = e.target.value.trim();
-  if (!q) { $('#search-results').innerHTML = ''; return; }
-  searchTimer = setTimeout(() => doSearch(q), 350);
-});
 
 async function doSearch(q) {
   const res = await api('/api/movies/search?q=' + encodeURIComponent(q));
   const box = $('#search-results');
+  if (!box) return;
   if (res.error === 'no_api_key') {
     box.innerHTML = '<p style="color:var(--muted);font-size:13px">No TMDB API key set — see README.</p>';
     return;
@@ -533,16 +789,33 @@ function pickMovie(m) {
 }
 
 $('#modal-start').addEventListener('click', async () => {
-  const date = $('#night-date').value;
-  const body = {
-    movie_date: date,
-    title: chosenMovie ? chosenMovie.title : ($('#movie-search').value.trim() || null),
-    tmdb_id: chosenMovie ? chosenMovie.tmdb_id : null,
-    poster_path: chosenMovie ? chosenMovie.poster_path : null,
-    release_date: chosenMovie ? chosenMovie.release_date : null,
-    overview: chosenMovie ? chosenMovie.overview : null,
-  };
-  const res = await api('/api/night', { method: 'POST', body: JSON.stringify(body) });
+  const type = currentModalType();
+  if (!type) { alert('Pick an event type.'); return; }
+  const event_date = $('#event-date').value;
+  let name = null;
+  let fields = {};
+
+  if (type.slug === 'movie_night') {
+    name = chosenMovie ? chosenMovie.title : ($('#movie-search').value.trim() || null);
+    fields = {
+      tmdb_id: chosenMovie ? chosenMovie.tmdb_id : null,
+      poster_path: chosenMovie ? chosenMovie.poster_path : null,
+      release_date: chosenMovie ? chosenMovie.release_date : null,
+      overview: chosenMovie ? chosenMovie.overview : null,
+    };
+  } else {
+    const nameEl = $('#event-name');
+    name = nameEl ? nameEl.value.trim() || null : null;
+    for (const f of JSON.parse(type.fields || '[]')) {
+      const el = document.getElementById(`cf-${f.key}`);
+      if (el) fields[f.key] = el.value || null;
+    }
+  }
+
+  const res = await api('/api/event', {
+    method: 'POST',
+    body: JSON.stringify({ event_type_id: type.id, name, event_date, fields }),
+  });
   if (res.error) { alert(res.error); return; }
   closeModal();
   loadBoard();
@@ -550,10 +823,11 @@ $('#modal-start').addEventListener('click', async () => {
 
 // ---------- init ----------
 loadBoard();
+api('/api/event-types').then((types) => { eventTypes = types; });
 
 // Reload the board every 60 s, but only when the board tab is visible and the
 // document isn't hidden (e.g. phone screen off or tab in background).
 setInterval(() => {
   const boardActive = document.getElementById('board').classList.contains('active');
-  if (boardActive && !document.hidden && nightActive) loadBoard();
+  if (boardActive && !document.hidden && eventActive) loadBoard();
 }, 60_000);

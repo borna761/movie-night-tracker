@@ -2,6 +2,9 @@
 .env
 
 # Local SQLite database + WAL sidecars
+event-tracker.db
+event-tracker.db-wal
+event-tracker.db-shm
 movie-night.db
 movie-night.db-wal
 movie-night.db-shm
@@ -14,3 +17,6 @@ node_modules/
 
 # Local Claude Code config
 .claude/
+
+# Scratch copies of production data used to test the migration script
+migration-testdata/
