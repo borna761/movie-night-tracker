@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 4321;
 const TMDB_API_KEY = process.env.TMDB_API_KEY || '';
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w300';
 
-const STATUSES = ['to_invite', 'invited', 'declined', 'confirmed', 'did_not_show', 'attended'];
+const STATUSES = ['to_invite', 'invited', 'confirmed', 'attended', 'declined', 'did_not_show'];
 
 // ---------- helpers ----------
 function send(res, code, data) {

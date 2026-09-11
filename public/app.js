@@ -3,10 +3,10 @@
 const STATUSES = [
   { key: 'to_invite', label: 'To Invite' },
   { key: 'invited', label: 'Invited' },
-  { key: 'declined', label: 'Declined' },
   { key: 'confirmed', label: 'Confirmed' },
-  { key: 'did_not_show', label: 'Did Not Show' },
   { key: 'attended', label: 'Attended' },
+  { key: 'declined', label: 'Declined' },
+  { key: 'did_not_show', label: 'Did Not Show' },
 ];
 
 const $ = (sel) => document.querySelector(sel);
