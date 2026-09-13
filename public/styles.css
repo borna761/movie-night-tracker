@@ -243,7 +243,7 @@ textarea { resize: vertical; }
 }
 
 /* ---------- Watchlist ---------- */
-.wl-list, #wl-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+.wl-list, #wl-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .wl-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -254,7 +254,7 @@ textarea { resize: vertical; }
 .wl-card .wl-info { padding: 10px; }
 .wl-card .wl-title { font-weight: 600; font-size: 14px; }
 .wl-card .wl-year { color: var(--muted); font-size: 12px; margin: 2px 0 6px; }
-.wl-card .wl-overview { color: var(--muted); font-size: 12px; line-height: 1.4; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.wl-card .wl-overview { color: var(--muted); font-size: 12px; line-height: 1.4; margin-bottom: 8px; }
 .wl-card button { width: 100%; font-size: 13px; padding: 7px; }
 .wl-card .wl-actions { display: flex; gap: 6px; padding: 0 10px 10px; }
 .wl-card--watched { opacity: 0.6; border-top: 3px solid var(--attended); }
