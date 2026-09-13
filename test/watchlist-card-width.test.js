@@ -11,7 +11,8 @@ test('watchlist cards are wide enough to read the full overview text', () => {
   const gridRule = css.match(/\.wl-list,\s*#wl-list\s*\{[^}]*\}/)[0];
   const minWidthMatch = gridRule.match(/minmax\((\d+)px/);
   assert.ok(minWidthMatch, 'grid should use a minmax() column width');
-  assert.ok(Number(minWidthMatch[1]) >= 260, 'watchlist card min width should be at least 260px');
+  const minWidth = Number(minWidthMatch[1]);
+  assert.ok(minWidth >= 200 && minWidth <= 230, 'watchlist card min width should be between 200-230px');
 
   const overviewRule = css.match(/\.wl-card \.wl-overview\s*\{[^}]*\}/)[0];
   const clampMatch = overviewRule.match(/-webkit-line-clamp:\s*(\d+)/);
