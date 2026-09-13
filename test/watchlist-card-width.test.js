@@ -19,3 +19,14 @@ test('watchlist cards are wide enough to read the full overview text', () => {
   assert.ok(clampMatch, 'overview text should be clamped to a fixed number of lines');
   assert.equal(Number(clampMatch[1]), 5, 'overview should be clamped at 5 lines');
 });
+
+test('the Remove button stays pinned to the bottom of the card regardless of overview length', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../public/styles.css'), 'utf8');
+
+  const cardRule = css.match(/\.wl-card\s*\{[^}]*\}/)[0];
+  assert.match(cardRule, /display:\s*flex/, '.wl-card should be a flex container so its rows can stretch');
+  assert.match(cardRule, /flex-direction:\s*column/, '.wl-card should stack its content vertically');
+
+  const infoRule = css.match(/\.wl-card \.wl-info\s*\{[^}]*\}/)[0];
+  assert.match(infoRule, /flex:\s*1/, '.wl-info should grow to fill remaining space, pushing the actions row to the bottom');
+});

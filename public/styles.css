@@ -245,13 +245,15 @@ textarea { resize: vertical; }
 /* ---------- Watchlist ---------- */
 .wl-list, #wl-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .wl-card {
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
 }
 .wl-card img { width: 100%; display: block; }
-.wl-card .wl-info { padding: 10px; }
+.wl-card .wl-info { flex: 1; padding: 10px; }
 .wl-card .wl-title { font-weight: 600; font-size: 14px; }
 .wl-card .wl-year { color: var(--muted); font-size: 12px; margin: 2px 0 6px; }
 .wl-card .wl-overview { color: var(--muted); font-size: 12px; line-height: 1.4; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
