@@ -14,5 +14,7 @@ test('watchlist cards are wide enough to read the full overview text', () => {
   assert.ok(Number(minWidthMatch[1]) >= 260, 'watchlist card min width should be at least 260px');
 
   const overviewRule = css.match(/\.wl-card \.wl-overview\s*\{[^}]*\}/)[0];
-  assert.doesNotMatch(overviewRule, /-webkit-line-clamp/, 'overview text should not be clamped so the full text is readable');
+  const clampMatch = overviewRule.match(/-webkit-line-clamp:\s*(\d+)/);
+  assert.ok(clampMatch, 'overview text should be clamped to a fixed number of lines');
+  assert.equal(Number(clampMatch[1]), 5, 'overview should be clamped at 5 lines');
 });
